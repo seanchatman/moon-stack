@@ -1,49 +1,39 @@
-# Based on ubuntu 14:04
-FROM slok/vagrant-jdk
-MAINTAINER Xabier Larrakoetxea <slok69@gmail.com>
+FROM phusion/baseimage:0.9.13
+MAINTAINER Sean Chatman <xpointsh@gmail.com>
 
-# Install dependencies
-RUN apt-get update
-RUN apt-get -y install unzip 
+# Set correct environment variables.
+ENV HOME /root
 
-# Use vagrant user for the upcoming tasks
-USER vagrant
-WORKDIR /home/vagrant
-ENV HOME /home/vagrant
+ADD . /root
 
-# Download and Install GVM
-RUN curl http://api.gvmtool.net -o /tmp/gvm-install.sh
-RUN chmod 744 /tmp/gvm-install.sh
-RUN /tmp/gvm-install.sh
+# Regenerate SSH host keys. baseimage-docker does not contain any, so you
+# have to do that yourself. You may also comment out this instruction; the
+# init system will auto-generate one during boot.
+# RUN /etc/my_init.d/00_regen_ssh_host_keys.sh
 
-# Prepare config for gvm and scripts
-USER root
-ADD config /home/vagrant/.gvm/etc/config
-RUN chown vagrant:vagrant -R /home/vagrant/.gvm
-RUN chmod 644 /home/vagrant/.gvm/etc/config
-ADD install_components.sh /tmp/install_components.sh
-RUN chown vagrant:vagrant /tmp/install_components.sh
-RUN chmod 744 /tmp/install_components.sh
-
-# Install Groovy and grails versions
-USER vagrant
-RUN /tmp/install_components.sh
-
-# Clean
-RUN rm /tmp/gvm-install.sh
-RUN rm /tmp/install_components.sh
-
-# Start the magic
+# Use baseimage-docker's init system.
 CMD ["/sbin/my_init"]
 
-USER root
-#RUN apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+# ...put your own build instructions here...
 
-# Install javascript package manager
-RUN apt-get install -y build-essential libssl-dev nodejs-legacy npm
+##### Installing JDK 8 #####
 
-# Installing javascrip project dependencies
-RUN npm -g install yo coffee angular ionic cordova grunt bower
+RUN echo "deb http://ppa.launchpad.net/webupd8team/java/ubuntu precise main" | tee -a /etc/apt/sources.list
+RUN echo "deb-src http://ppa.launchpad.net/webupd8team/java/ubuntu precise main" | tee -a /etc/apt/sources.list
+RUN apt-key adv --keyserver keyserver.ubuntu.com --recv-keys EEA14886
+RUN apt-get update
 
-# Installing ionic dependencies
-RUN ionic platform add ios android
+# auto accept oracle jdk license
+RUN echo oracle-java8-installer shared/accepted-oracle-license-v1-1 select true | /usr/bin/debconf-set-selections
+RUN apt-get install -y oracle-java8-installer ca-certificates
+
+RUN apt-get install -y curl git
+
+RUN /usr/sbin/enable_insecure_key
+
+# Install SSH key.
+ADD id_rsa.pub /tmp/id_rsa.pub
+RUN cat /tmp/id_rsa.pub >> /root/.ssh/authorized_keys && rm -f /tmp/id_rsa.pub
+
+# Clean up APT when done.
+RUN apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
